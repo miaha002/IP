@@ -1,0 +1,57 @@
+version: "3.8"
+services:
+  localstack: # AWS MOCK
+    container_name: "${LOCALSTACK_DOCKER_NAME:-localstack-main}"
+    build:
+      context: ./docker/localstack/
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:4566:4566" # LocalStack Gateway
+      - "127.0.0.1:4510-4559:4510-4559" # external services port range
+    environment:
+      # LocalStack configuration: https://docs.localstack.cloud/references/configuration/
+      - DEBUG=${DEBUG:-1}
+      - SERVICES=dynamodb # Add other services as needed
+    volumes:
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack" # LocalStack data directory for persistence.
+      - "/var/run/docker.sock:/var/run/docker.sock" # Optional, for better performance
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localstack:4566/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+  backend-api:
+    container_name: todoapp-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - localstack
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=eu-west-2
+      - DYNAMODB_ENDPOINT=http://localstack:4566
+    volumes:
+      - ./backend:/usr/src/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://backend-api:8000/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+  frontend: # REACT APP
+    container_name: todoapp-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_ENDPOINT=http://backend-api:8000
+    depends_on:
+      - backend-api

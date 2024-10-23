@@ -1,6 +1,16 @@
 const mongoose = require("mongoose");
 const Todos = require("../dbTodos");
 
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+const client = new DynamoDBClient({
+  endpoint: "http://localhost:4566",
+  region: "eu-west-2",
+  credentials: {
+    accessKeyId: "test",
+    secretAccessKey: "test",
+  },
+});
+
 // get todo list
 const getTodos = async (req, res) => {
   try {
